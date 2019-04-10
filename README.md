@@ -1,0 +1,2 @@
+# MyGdiFramework
+从网上弄来的关于GDI的代码简单封装了一下方便使用
