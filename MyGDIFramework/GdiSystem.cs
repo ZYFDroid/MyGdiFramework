@@ -8,7 +8,7 @@ using System.Windows.Forms;
 namespace MyGDIFramework
 {
 
-    public class GdiSystem
+    public class GdiSystem : IDisposable
     {
         Form thisWindow;
 
@@ -30,13 +30,24 @@ namespace MyGDIFramework
             {
                 throw new AccessViolationException("窗口没有初始化");
             }
+            oldBits = IntPtr.Zero;
+            screenDC = Win32.GetDC(IntPtr.Zero);
+            hBitmap = IntPtr.Zero;
+            memDc = Win32.CreateCompatibleDC(screenDC);
+            blendFunc.BlendOp = Win32.AC_SRC_OVER;
+            blendFunc.SourceConstantAlpha = 255;
+            blendFunc.AlphaFormat = Win32.AC_SRC_ALPHA;
+            blendFunc.BlendFlags = 0;
+
             initBitmaps();
+
         }
 
         private void initBitmaps()
         {
             thisBitmap = new Bitmap(thisWindow.Width, thisWindow.Height);
             thisGraphics = Graphics.FromImage(thisBitmap);
+            bitMapSize = new Win32.Size(thisBitmap.Width, thisBitmap.Height);
         }
         /// <summary>
         /// 获取一个可以绘制的画布对象，在上面绘制窗体内容
@@ -57,33 +68,26 @@ namespace MyGDIFramework
         {
             SetBits(thisBitmap);
         }
+        IntPtr oldBits;
+        IntPtr screenDC;
+        IntPtr hBitmap;
+        IntPtr memDc;
+        Win32.BLENDFUNCTION blendFunc = new Win32.BLENDFUNCTION();
 
+        Win32.Point topLoc = new Win32.Point(0, 0);
+        Win32.Size bitMapSize;
+        Win32.Point srcLoc = new Win32.Point(0, 0);
         private void SetBits(Bitmap bitmap)
         {
 
             if (!Bitmap.IsCanonicalPixelFormat(bitmap.PixelFormat) || !Bitmap.IsAlphaPixelFormat(bitmap.PixelFormat))
                 throw new ApplicationException("The picture must be 32bit picture with alpha channel.");
-
-            IntPtr oldBits = IntPtr.Zero;
-            IntPtr screenDC = Win32.GetDC(IntPtr.Zero);
-            IntPtr hBitmap = IntPtr.Zero;
-            IntPtr memDc = Win32.CreateCompatibleDC(screenDC);
-
             try
             {
-                Win32.Point topLoc = new Win32.Point(thisWindow.Left, thisWindow.Top);
-                Win32.Size bitMapSize = new Win32.Size(bitmap.Width, bitmap.Height);
-                Win32.BLENDFUNCTION blendFunc = new Win32.BLENDFUNCTION();
-                Win32.Point srcLoc = new Win32.Point(0, 0);
-
-                hBitmap = bitmap.GetHbitmap(Color.FromArgb(0));
+                topLoc.x = thisWindow.Left;
+                topLoc.y = thisWindow.Top;
+                hBitmap = thisBitmap.GetHbitmap(Color.FromArgb(0));
                 oldBits = Win32.SelectObject(memDc, hBitmap);
-
-                blendFunc.BlendOp = Win32.AC_SRC_OVER;
-                blendFunc.SourceConstantAlpha = 255;
-                blendFunc.AlphaFormat = Win32.AC_SRC_ALPHA;
-                blendFunc.BlendFlags = 0;
-
                 Win32.UpdateLayeredWindow(thisWindow.Handle, screenDC, ref topLoc, ref bitMapSize, memDc, ref srcLoc, 0, ref blendFunc, Win32.ULW_ALPHA);
             }
             finally
@@ -93,10 +97,15 @@ namespace MyGDIFramework
                     Win32.SelectObject(memDc, oldBits);
                     Win32.DeleteObject(hBitmap);
                 }
-                Win32.ReleaseDC(IntPtr.Zero, screenDC);
-                Win32.DeleteDC(memDc);
             }
         }
+
+        public void Dispose()
+        {
+            Win32.ReleaseDC(IntPtr.Zero, screenDC);
+            Win32.DeleteDC(memDc);
+        }
+
         private Bitmap thisBitmap;
         private Graphics thisGraphics;
 
@@ -208,10 +217,10 @@ namespace MyGDIFramework
         #region drawRotateImg
         public static void drawRotateImg(Graphics g, Image img, float angle, float centerX, float centerY)
         {
-            drawRotateImg(g,img, angle,  centerX, centerY, img.Width, img.Height);
+            drawRotateImg(g, img, angle, centerX, centerY, img.Width, img.Height);
         }
 
-        public static void drawRotateImg(Graphics g,Image img, float angle,  float centerX, float centerY, float imgW, float imgH)
+        public static void drawRotateImg(Graphics g, Image img, float angle, float centerX, float centerY, float imgW, float imgH)
         {
             float width = imgW;
             float height = imgH;
